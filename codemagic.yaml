@@ -21,12 +21,16 @@ workflows:
           cmake -S ios -B build -G Xcode -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 -DCMAKE_POLICY_VERSION_MINIMUM=3.5
       - name: İmzasız derle
         script: |
+          set -eo pipefail
           xcodebuild -project build/OrmaninKalbiIOS.xcodeproj -target OrmaninKalbi -configuration Release -sdk iphoneos \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build | tail -40
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build > xcodebuild.log 2>&1 || { grep -E "error:|Error " xcodebuild.log | head -40; tail -60 xcodebuild.log; exit 1; }
           APP=$(find build -type d -name "OrmaninKalbi.app" -path "*iphoneos*" | head -1)
-          echo "uygulama: $APP"
+          if [ -z "$APP" ] || [ ! -f "$APP/OrmaninKalbi" ]; then echo "HATA: OrmaninKalbi.app bulunamadı"; tail -60 xcodebuild.log; exit 1; fi
+          echo "uygulama: $APP"; ls -la "$APP" | head -20
           mkdir -p cikti/Payload
           cp -R "$APP" cikti/Payload/
           cd cikti && zip -qr OrmaninKalbi-iPhone.ipa Payload
+          unzip -l OrmaninKalbi-iPhone.ipa | head -20
     artifacts:
       - cikti/*.ipa
+      - xcodebuild.log
